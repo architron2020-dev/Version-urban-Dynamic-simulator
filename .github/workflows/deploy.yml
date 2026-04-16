@@ -17,6 +17,12 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
+      - name: Set v2 as root index
+        run: |
+          if [ -f urban3d-v2.html ]; then
+            cp urban3d-v2.html index.html
+            echo "urban3d-v2.html deployed as index.html"
+          fi
       - uses: actions/configure-pages@v4
       - uses: actions/upload-pages-artifact@v3
         with:
