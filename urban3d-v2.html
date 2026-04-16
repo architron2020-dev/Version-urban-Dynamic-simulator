@@ -4845,11 +4845,21 @@ function syncMinimapCanvas() {
   ro.observe(wrap);
 })();
 
-// ─── Hoist late let declarations so they are initialised before the init block ─
+// ─── Hoist late let/const declarations so they are initialised before the init block ─
 let timelineHistory = [];
 let tlDebounce = null;
 let globeGroup=null, globeMesh=null, globeAtm=null, globeStarsMesh=null;
 let globeMode=true, globeAnimating=false;
+// Scenario verdicts for all scenarios (used synchronously via v2ApplyVerdictPatch in updateScores)
+const _v2SceneVerdicts={
+  market:     {cls:'good', t:'Street market activates ground-floor retail, supports local economy, and improves walkability through informal public space.'},
+  cycling:    {cls:'good', t:'Dedicated cycle infrastructure reduces vehicle traffic, lowers emissions, and improves air quality and public health.'},
+  plaza:      {cls:'good', t:'Public plaza boosts pedestrian comfort, reduces heat island effect, and creates civic space for community activity.'},
+  pedestrian: {cls:'good', t:'Pedestrian-priority zone delivers highest walkability score — removes vehicles, activates edges, and reduces noise and pollution.'},
+  solar:      {cls:'good', t:'Solar district reduces carbon index by ~35 points. Rooftop and ground-mounted panels supply renewable energy while maintaining usable land.'},
+  mixeduse:   {cls:'good', t:'Mixed-use development activates street edges, reduces car trips, and improves walkability through retail-ground / residential-upper typology.'},
+  waterfront: {cls:'good', t:'Waterfront activation improves thermal comfort (cooling effect), biodiversity connectivity, and creates high-value public space.'},
+};
 
 // ─── INIT ──────────────────────────────────────────────────────────────────────
 loadState();
@@ -5141,11 +5151,7 @@ function v2UpdateRadar(){
 }
 
 // ─── V2: VERDICTS FOR NEW SCENARIOS ───────────────────────────────────────────
-const _v2SceneVerdicts={
-  solar:      {cls:'good',t:'Solar district reduces carbon index by ~35 points. Rooftop and ground-mounted panels supply renewable energy while maintaining usable land.'},
-  mixeduse:   {cls:'good',t:'Mixed-use development activates street edges, reduces car trips, and improves walkability through retail-ground / residential-upper typology.'},
-  waterfront: {cls:'good',t:'Waterfront activation improves thermal comfort (cooling effect), biodiversity connectivity, and creates high-value public space.'},
-};
+// _v2SceneVerdicts is declared above the init block to avoid temporal dead zone
 
 function v2ApplyVerdictPatch(){
   const v2v=_v2SceneVerdicts[scene3d];
