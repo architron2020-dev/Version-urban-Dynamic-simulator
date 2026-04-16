@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="760" height="228" viewBox="0 0 760 228">
+  <!-- card -->
+  <rect width="760" height="228" rx="8" fill="#0d1117"/>
+  <rect width="760" height="228" rx="8" fill="none" stroke="#30363d" stroke-width="1"/>
+
+  <!-- line 1 -->
+  <text x="24" y="42" font-family="'Courier New',Courier,monospace" font-size="13.5" fill="#6e7681">1</text>
+  <text x="56" y="42" font-family="'Courier New',Courier,monospace" font-size="13.5" fill="#e6edf3">git clone </text>
+  <text x="130" y="42" font-family="'Courier New',Courier,monospace" font-size="13.5" fill="#f0883e">https://github.com/architron2020-dev/Urban-Dynamic-Simulator.git</text>
+
+  <!-- line 2 -->
+  <text x="24" y="72" font-family="'Courier New',Courier,monospace" font-size="13.5" fill="#6e7681">2</text>
+  <text x="56" y="72" font-family="'Courier New',Courier,monospace" font-size="13.5" fill="#e6edf3">cd </text>
+  <text x="79" y="72" font-family="'Courier New',Courier,monospace" font-size="13.5" fill="#f0883e">Urban-Dynamic-Simulator</text>
+
+  <!-- line 3 -->
+  <text x="24" y="102" font-family="'Courier New',Courier,monospace" font-size="13.5" fill="#6e7681">3</text>
+  <text x="56" y="102" font-family="'Courier New',Courier,monospace" font-size="13.5" fill="#e6edf3">npm install</text>
+
+  <!-- line 4 -->
+  <text x="24" y="132" font-family="'Courier New',Courier,monospace" font-size="13.5" fill="#6e7681">4</text>
+  <text x="56" y="132" font-family="'Courier New',Courier,monospace" font-size="13.5" fill="#e6edf3">npm run dev</text>
+
+  <!-- line 5 -->
+  <text x="24" y="162" font-family="'Courier New',Courier,monospace" font-size="13.5" fill="#6e7681">5</text>
+  <text x="56" y="162" font-family="'Courier New',Courier,monospace" font-size="13.5" fill="#6e7681"># open </text>
+  <text x="108" y="162" font-family="'Courier New',Courier,monospace" font-size="13.5" fill="#58a6ff">http://localhost:3000</text>
+
+  <!-- divider -->
+  <line x1="24" y1="181" x2="736" y2="181" stroke="#21262d" stroke-width="1"/>
+
+  <!-- line 6 — GitHub Pages -->
+  <text x="24" y="212" font-family="'Courier New',Courier,monospace" font-size="13.5" fill="#6e7681">6</text>
+  <text x="56" y="212" font-family="'Courier New',Courier,monospace" font-size="13.5" fill="#6e7681"># live on GitHub Pages → </text>
+  <text x="254" y="212" font-family="'Courier New',Courier,monospace" font-size="13.5" fill="#58a6ff">https://architron2020-dev.github.io/Urban-Dynamic-Simulator/</text>
+</svg>
