@@ -4845,6 +4845,12 @@ function syncMinimapCanvas() {
   ro.observe(wrap);
 })();
 
+// ─── Hoist late let declarations so they are initialised before the init block ─
+let timelineHistory = [];
+let tlDebounce = null;
+let globeGroup=null, globeMesh=null, globeAtm=null, globeStarsMesh=null;
+let globeMode=true, globeAnimating=false;
+
 // ─── INIT ──────────────────────────────────────────────────────────────────────
 loadState();
 initWeatherCanvas();
@@ -4963,8 +4969,7 @@ function initTheme(){
 }
 
 // ─── V2: TIMELINE ─────────────────────────────────────────────────────────────
-let timelineHistory = [];
-let tlDebounce = null;
+// timelineHistory and tlDebounce are declared above the init block to avoid TDZ
 
 function recordTimelineEntry(scores){
   clearTimeout(tlDebounce);
@@ -5233,8 +5238,8 @@ document.addEventListener('click', e=>{
 }, true);
 
 // ─── EARTH GLOBE SYSTEM ───────────────────────────────────────────────────────
-let globeGroup=null, globeMesh=null, globeAtm=null, globeStarsMesh=null;
-let globeMode=true, globeAnimating=false;
+// globeGroup, globeMesh, globeAtm, globeStarsMesh, globeMode, globeAnimating
+// are declared above the init block to avoid TDZ errors
 
 function generateGlobeTexture(){
   const W=2048,H=1024;
