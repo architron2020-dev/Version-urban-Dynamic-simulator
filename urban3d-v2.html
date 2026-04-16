@@ -1364,27 +1364,40 @@ document.getElementById('loc-in').addEventListener('focus',()=>showLocationHisto
 document.getElementById('loc-in').addEventListener('blur',()=>setTimeout(hideLocationHistory,180));
 document.getElementById('gps-btn').addEventListener('click',()=>{
   if(!navigator.geolocation){ useIPGeolocation(); return; }
-  notify('GPS','Getting position…');
+  notify('GPS','Getting your position…');
   navigator.geolocation.getCurrentPosition(
-    p => fetchClimateCoords(p.coords.latitude, p.coords.longitude),
+    p => {
+      notify('GPS','Location found — loading city…');
+      fetchClimateAndOSMDirect(p.coords.latitude, p.coords.longitude);
+    },
     e => {
       console.warn('GPS denied/failed:', e.code, e.message);
       notify('GPS','GPS unavailable — using IP location…');
       useIPGeolocation();
     },
-    { timeout: 8000, maximumAge: 60000, enableHighAccuracy: false }
+    { timeout: 10000, maximumAge: 30000, enableHighAccuracy: true }
   );
 });
 
 async function useIPGeolocation() {
   try {
     notify('Location', 'Detecting location via IP…');
-    const r = await fetch('https://ip-api.com/json?fields=lat,lon,city,country,status');
-    const d = await r.json();
-    if (d.status === 'success' && d.lat && d.lon) {
-      const label = [d.city, d.country].filter(Boolean).join(', ') || `${d.lat.toFixed(2)},${d.lon.toFixed(2)}`;
+    // Try two IP geolocation providers for reliability
+    let lat, lon, label;
+    try {
+      const r = await fetch('https://ip-api.com/json?fields=lat,lon,city,country,status');
+      const d = await r.json();
+      if (d.status === 'success' && d.lat) { lat=d.lat; lon=d.lon; label=[d.city,d.country].filter(Boolean).join(', '); }
+    } catch(e) {}
+    if (!lat) {
+      const r2 = await fetch('https://ipapi.co/json/');
+      const d2 = await r2.json();
+      if (d2.latitude) { lat=d2.latitude; lon=d2.longitude; label=[d2.city,d2.country_name].filter(Boolean).join(', '); }
+    }
+    if (lat) {
+      label = label || `${lat.toFixed(2)},${lon.toFixed(2)}`;
       notify('Location', 'IP location: ' + label);
-      fetchClimateCoords(d.lat, d.lon, label);
+      fetchClimateAndOSMDirect(lat, lon, label);
     } else {
       notify('GPS', 'Could not determine location — type a city name manually');
     }
@@ -1392,6 +1405,42 @@ async function useIPGeolocation() {
     console.warn('IP geolocation failed:', e);
     notify('GPS', 'Location unavailable — type a city name manually');
   }
+}
+
+// ── Direct GPS→OSM path: skip globe animation, go straight to city ────────────
+async function fetchClimateAndOSMDirect(lat, lon, label) {
+  osmLat = lat; osmLon = lon; osmNavLat = lat; osmNavLon = lon;
+  // Dismiss globe overlay immediately
+  const go = document.getElementById('globe-overlay');
+  if (go) { go.classList.add('fade-out'); setTimeout(()=>go.classList.add('hidden'),600); }
+  // Jump straight into city mode without globe fly animation
+  if (globeMode) {
+    globeMode = false; globeAnimating = false;
+    if (globeGroup) globeGroup.visible = false;
+    if (globeStarsMesh) globeStarsMesh.visible = false;
+    const gbb = document.getElementById('globe-back-btn'); if (gbb) gbb.style.display = '';
+    if (renderer) renderer.setClearColor(currentTheme==='light'?0xb8c8d4:0x0e1018, 1);
+    if (threeScene) threeScene.fog.density = 0.0012;
+    camRadius = 80; targetPhi = 1.1; targetTheta = 0.6;
+  }
+  // Activate OSM mode
+  if (!osmMode) {
+    osmMode = true;
+    const btn = document.getElementById('osm-btn'); if (btn) btn.classList.add('on');
+    if (cityGroup) cityGroup.visible = false;
+    if (groundMesh) groundMesh.visible = false;
+    if (roadGroup) roadGroup.visible = false;
+    document.getElementById('osm-scenario-badge').style.display = '';
+    if (osmDesignGroup) osmDesignGroup.visible = true;
+    if (!osmCityGroup && threeScene) { osmCityGroup = new THREE.Group(); threeScene.add(osmCityGroup); }
+    if (osmCityGroup) osmCityGroup.visible = true;
+    document.getElementById('osm-nav').classList.remove('hidden');
+    document.getElementById('viewport').classList.add('osm-active');
+  }
+  updateOsmCoordDisplay(); updateSunLight();
+  onResize(); // ensure renderer canvas has correct dimensions
+  // fetchClimateCoords will call fetchAndBuildOSMCity internally when not in globeMode
+  fetchClimateCoords(lat, lon, label).catch(e => { console.warn('Climate fetch failed:', e); notify('Climate error','Could not load data'); });
 }
 
 async function fetchClimate(q){
@@ -3732,8 +3781,10 @@ const OVERPASS_ENDPOINTS = [
   'https://overpass-api.de/api/interpreter',
   'https://overpass.kumi.systems/api/interpreter',
   'https://overpass.openstreetmap.ru/cgi/interpreter',
+  'https://overpass.private.coffee/api/interpreter',
   'https://maps.mail.ru/osm/tools/overpass/api/interpreter',
 ];
+const OVERPASS_FETCH_TIMEOUT_MS = 25000; // 25s per endpoint before trying next
 
 async function fetchAndBuildOSMCity(lat, lon) {
   if (osmLocked) return;
@@ -3757,22 +3808,32 @@ node["place"~"neighbourhood|suburb|quarter|village|hamlet|city_block"](${bbox});
   let data = null;
   for (const ep of OVERPASS_ENDPOINTS) {
     try {
-      osmShowStatus('Fetching city data', ep.replace('https://','').split('/')[0] + '…');
+      const host = ep.replace('https://','').split('/')[0];
+      osmShowStatus('Fetching city data', host + '…');
+      // AbortController for per-endpoint timeout
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), OVERPASS_FETCH_TIMEOUT_MS);
       const res = await fetch(ep, {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: 'data=' + encodeURIComponent(query),
+        signal: ctrl.signal,
       });
-      if (!res.ok) { console.warn('Overpass HTTP error:', res.status, ep); continue; }
-      osmShowStatus('Building city', 'Processing geometry…');
+      clearTimeout(timer);
+      if (!res.ok) { console.warn('Overpass HTTP error:', res.status, host); continue; }
+      osmShowStatus('Building 3D city', 'Processing OSM geometry…');
       const parsed = await res.json();
-      if (!parsed || !Array.isArray(parsed.elements)) {
-        console.warn('Overpass returned no elements:', parsed?.remark || parsed, ep);
+      if (!parsed || !Array.isArray(parsed.elements) || parsed.elements.length === 0) {
+        console.warn('Overpass empty/invalid response from', host, parsed?.remark || '');
         continue;
       }
+      console.log(`OSM loaded from ${host}: ${parsed.elements.length} elements`);
       data = parsed;
       break;
-    } catch (e) { console.warn('Overpass endpoint failed:', ep, e.message || e); /* try next */ }
+    } catch (e) {
+      if (e.name === 'AbortError') console.warn('Overpass timeout on', ep);
+      else console.warn('Overpass failed:', ep, e.message || e);
+    }
   }
 
   if (!data) {
@@ -4787,7 +4848,12 @@ function syncMinimapCanvas() {
 // ─── INIT ──────────────────────────────────────────────────────────────────────
 loadState();
 initWeatherCanvas();
-initThree();
+try { initThree(); } catch(e) { console.error('initThree failed:', e); }
+// Hard-timeout: always clear loading screen even if initThree threw
+setTimeout(() => { const ld = document.getElementById('loading'); if (ld) ld.classList.add('gone'); }, 4000);
+// Ensure renderer canvas is sized correctly after CSS layout has been computed
+setTimeout(() => { if (typeof renderer !== 'undefined' && renderer && typeof onResize === 'function') onResize(); }, 50);
+window.addEventListener('load', () => { if (typeof renderer !== 'undefined' && renderer && typeof onResize === 'function') onResize(); });
 initKeyboardShortcuts();
 
 // Initialize globe view after loading screen clears
@@ -5324,7 +5390,19 @@ function globeGPS(){
   playSound('whoosh');
   document.getElementById('globe-overlay').classList.add('fade-out');
   showFlyText('Acquiring GPS…');
-  document.getElementById('gps-btn').click();
+  if(!navigator.geolocation){ useIPGeolocation(); return; }
+  navigator.geolocation.getCurrentPosition(
+    p => {
+      showFlyText('Loading your city…');
+      fetchClimateAndOSMDirect(p.coords.latitude, p.coords.longitude);
+    },
+    e => {
+      console.warn('Globe GPS failed:', e.code);
+      showFlyText('Using IP location…');
+      useIPGeolocation();
+    },
+    { timeout: 10000, maximumAge: 30000, enableHighAccuracy: true }
+  );
 }
 function showFlyText(msg){
   const el=document.getElementById('globe-flytext'); if(!el) return;
@@ -5405,6 +5483,7 @@ function enterCityModeFromGlobe(lat,lon,label){
   document.getElementById('osm-nav').classList.remove('hidden');
   document.getElementById('viewport').classList.add('osm-active');
   updateSunLight();
+  onResize(); // ensure renderer canvas has correct dimensions
   osmNavLat=lat; osmNavLon=lon;
   updateOsmCoordDisplay();
   notify('Loading city',label.split(',')[0]+' — fetching buildings…');
